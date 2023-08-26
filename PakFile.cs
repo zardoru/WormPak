@@ -1,6 +1,7 @@
 ﻿using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Text;
+using WormPak.Formats;
 
 namespace WormPak;
 
@@ -126,8 +127,8 @@ public class PakFile : IDisposable
     internal Image? GetPcxContents(Entry entry)
     {
         if (Stream == null) throw new NullReferenceException("Stream is null, should not be.");
-        Stream.Seek(entry.Offset, SeekOrigin.Begin);
-        return DmitryBrant.ImageFormats.PcxReader.Load(Stream);
+        var bin = GetEntryStream(entry);
+        return bin != null ? PcxFile.FromStream(bin)?.Bitmap : null;
     }
 
     internal Image? GetImageContents(Entry entry)
@@ -172,7 +173,6 @@ public class PakFile : IDisposable
     internal Stream? GetEntryStream(Entry entry)
     {
         var memory = GetBinaryContents(entry);
-        if (memory == null) return null;
-        return new MemoryStream(memory);
+        return memory == null ? null : new MemoryStream(memory);
     }
 }
