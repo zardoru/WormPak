@@ -1,4 +1,4 @@
-﻿namespace WormPak
+﻿namespace WormPak.Components
 {
     partial class WavPlayer
     {

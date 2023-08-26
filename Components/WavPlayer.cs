@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace WormPak
+namespace WormPak.Components
 {
     public partial class WavPlayer : UserControl
     {
