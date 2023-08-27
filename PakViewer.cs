@@ -2,6 +2,7 @@
 using System.Collections.Specialized;
 using System.Diagnostics;
 using WormPak.Components;
+using WormPak.Formats;
 
 namespace WormPak;
 
@@ -16,8 +17,91 @@ public partial class PakViewer : Form
             _pak?.Dispose();
 
             _pak = value;
+            _palette = null; // force palette to reload
             RebuildPakTree();
         }
+    }
+
+    private Color[]? _palette;
+    public Color[] Palette
+    {
+        get
+        {
+            if (_palette != null)
+                return _palette;
+
+            var pal = LoadPalette();
+            if (pal == null)
+                return new Color[256];
+
+            _palette = pal;
+            return _palette;
+        }
+    }
+
+    private Color[]? LoadPalette()
+    {
+        Color[]? pal = null;
+
+        // Read from current pak
+        if (Pak != null)
+            pal = GetPaletteFromPak(Pak);
+
+        if (pal != null)
+            return pal;
+
+        // Select pak or PCX file to load from
+        while (true)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "pak files (*.pak)|*.pak|pcx files (*.pcx)|*.pcx",
+                RestoreDirectory = true
+            };
+
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                try
+                {
+                    pal = Path.GetExtension(dialog.FileName).ToLower() switch
+                    {
+                        ".pcx" => PcxFile.FromStream(File.Open(dialog.FileName, FileMode.Open))?.Color8To24Table,
+                        ".pak" => GetPaletteFromPak(PakFile.FromFile(dialog.FileName)),
+                        _ => pal
+                    };
+                }
+                catch (Exception)
+                {
+                    MessageBox.Show(
+                        "failed to load the provided file. invalid format, more likely than not.",
+                        "error",
+                            MessageBoxButtons.OK
+                    );
+                    continue;
+                }
+
+
+                if (pal != null) return pal;
+
+                MessageBox.Show(
+                    "not a pak that contains colormap.pcx or otherwise is a bad pcx file",
+                    "error",
+                    MessageBoxButtons.OK
+                );
+            }
+            else
+            {
+                // user cancelled the thing so ok
+                return null;
+            }
+        }
+    }
+
+    private static Color[]? GetPaletteFromPak(PakFile pak)
+    {
+        return (from entry in pak.Entries 
+            where Path.GetFileName(entry.Name).ToLower() == "colormap.pcx" 
+            select pak.GetPcxPalette(entry)).FirstOrDefault();
     }
 
     private class TreeListEntry
@@ -137,7 +221,7 @@ public partial class PakViewer : Form
             return null;
 
         var extension = Path.GetExtension(entry.Name);
-        return extension?.ToLower() switch
+        return extension.ToLower() switch
         {
             ".cfg" or ".txt" or ".lst" or ".json" => new TextBox
             {
@@ -151,11 +235,8 @@ public partial class PakViewer : Form
                 Image = Pak.GetTgaContents(entry),
                 SizeMode = PictureBoxSizeMode.Zoom,
             },
-            ".pcx" => new PictureBox
-            {
-                Image = Pak.GetPcxContents(entry),
-                SizeMode = PictureBoxSizeMode.Zoom,
-            },
+            ".pcx" => GetImageViewerPcx(entry),
+            ".wal" => GetImageViewerWal(entry),
             ".png" or ".jpg" => new PictureBox
             {
                 Image = Pak.GetImageContents(entry),
@@ -169,6 +250,24 @@ public partial class PakViewer : Form
         };
     }
 
+    private Control GetImageViewerWal(PakFile.Entry entry)
+    {
+        var wal = Pak?.GetWalFile(entry, Palette);
+        if (wal?.Bitmap == null)
+            return new Label { Text = "Couldn't load file." };
+
+        return new ImageViewer(wal.Bitmap, wal.Header);
+    }
+
+    private Control GetImageViewerPcx(PakFile.Entry entry)
+    {
+        var pcx = Pak?.GetPcxFile(entry);
+        if (pcx?.Bitmap == null)
+            return new Label { Text = "Couldn't load file." };
+
+        return new ImageViewer(pcx.Bitmap, pcx.Header);
+    }
+
     private void TabbedItemView_MouseDown(object sender, MouseEventArgs e)
     {
         // middle mouse closes, right click opens a context menu.
@@ -180,7 +279,8 @@ public partial class PakViewer : Form
                 TabbedItemView.TabPages.RemoveAt(i);
                 return;
             }
-        } else if (e.Button == MouseButtons.Right)
+        }
+        else if (e.Button == MouseButtons.Right)
         {
             var tabIndex = -1;
             for (var i = 0; i < TabbedItemView.TabCount; i++)

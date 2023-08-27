@@ -123,13 +123,7 @@ public class PakFile : IDisposable
         Stream.Seek(entry.Offset, SeekOrigin.Begin);
         return DmitryBrant.ImageFormats.TgaReader.Load(Stream);
     }
-
-    internal Image? GetPcxContents(Entry entry)
-    {
-        if (Stream == null) throw new NullReferenceException("Stream is null, should not be.");
-        var bin = GetEntryStream(entry);
-        return bin != null ? PcxFile.FromStream(bin)?.Bitmap : null;
-    }
+    
 
     internal Image? GetImageContents(Entry entry)
     {
@@ -168,11 +162,33 @@ public class PakFile : IDisposable
     public void Dispose()
     {
         Stream?.Close();
+        GC.SuppressFinalize(this);
     }
 
     internal Stream? GetEntryStream(Entry entry)
     {
         var memory = GetBinaryContents(entry);
         return memory == null ? null : new MemoryStream(memory);
+    }
+    
+    public WalFile? GetWalFile(Entry entry, Color[] palette)
+    {
+        if (Stream == null) throw new NullReferenceException("Stream is null, should not be.");
+        var bin = GetEntryStream(entry);
+        return bin != null ? WalFile.FromStream(bin, palette) : null;
+    }
+
+    public Color[]? GetPcxPalette(Entry entry)
+    {
+        if (Stream == null) throw new NullReferenceException("Stream is null, should not be.");
+        var bin = GetEntryStream(entry);
+        return bin != null ? PcxFile.FromStream(bin, true)?.Color8To24Table : null;
+    }
+
+    public PcxFile? GetPcxFile(Entry entry)
+    {
+        if (Stream == null) throw new NullReferenceException("Stream is null, should not be.");
+        var bin = GetEntryStream(entry);
+        return bin != null ? PcxFile.FromStream(bin) : null;
     }
 }

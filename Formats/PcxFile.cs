@@ -65,7 +65,7 @@ public class PcxFile
         }
     }
 
-    private PcxHeader _header = new();
+    public PcxHeader Header { get; private set; }  = new();
     public Color[] Color8To24Table { get; } = new Color[256];
     public Bitmap? Bitmap { get; private set; }
     
@@ -84,7 +84,7 @@ public class PcxFile
         if (!header.Valid)
             return null;
 
-        retval._header = header;
+        retval.Header = header;
         stream.Seek(-768, SeekOrigin.End);
         using var bin = new BinaryReader(stream, System.Text.Encoding.ASCII, true);
         for (var i = 0; i < 255; i++)
